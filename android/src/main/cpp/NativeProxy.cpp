@@ -45,7 +45,8 @@ NativeProxy::NativeProxy(
       runtime_(rt),
       jsCallInvoker_(jsCallInvoker),
       layoutAnimations_(std::move(_layoutAnimations)),
-      scheduler_(scheduler)
+      scheduler_(scheduler),
+      destroyed_(std::make_shared<bool>(false))
 #ifdef RCT_NEW_ARCH_ENABLED
       ,
       newestShadowNodesRegistry_(std::make_shared<NewestShadowNodesRegistry>())
@@ -69,6 +70,8 @@ NativeProxy::~NativeProxy() {
   // has already been destroyed when AnimatedSensorModule's
   // destructor is ran
   nativeReanimatedModule_->cleanupSensors();
+
+  *destroyed_ = true;
 }
 
 jni::local_ref<NativeProxy::jhybriddata> NativeProxy::initHybrid(
@@ -180,6 +183,10 @@ void NativeProxy::registerNatives() {
 void NativeProxy::requestRender(
     std::function<void(double)> onRender,
     jsi::Runtime &rt) {
+  if (*destroyed_) {
+    return;
+  }
+
   static const auto method =
       getJniMethod<void(AnimationFrameCallback::javaobject)>("requestRender");
   method(
@@ -188,6 +195,10 @@ void NativeProxy::requestRender(
 }
 
 void NativeProxy::registerEventHandler() {
+  if (*destroyed_) {
+    return;
+  }
+
   auto eventHandler = bindThis(&NativeProxy::handleEvent);
   static const auto method =
       getJniMethod<void(EventHandler::javaobject)>("registerEventHandler");
@@ -197,6 +208,10 @@ void NativeProxy::registerEventHandler() {
 }
 
 void NativeProxy::maybeFlushUIUpdatesQueue() {
+  if (*destroyed_) {
+    return;
+  }
+
   static const auto method = getJniMethod<void()>("maybeFlushUIUpdatesQueue");
   method(javaPart_.get());
 }
@@ -208,6 +223,10 @@ jsi::Value NativeProxy::obtainProp(
     jsi::Runtime &rt,
     const int viewTag,
     const jsi::String &propName) {
+  if (*destroyed_) {
+    return jsi::String::createFromAscii(rt, "");
+  }
+
   static const auto method =
       getJniMethod<jni::local_ref<JString>(int, jni::local_ref<JString>)>(
           "obtainProp");
@@ -222,6 +241,10 @@ void NativeProxy::configureProps(
     jsi::Runtime &rt,
     const jsi::Value &uiProps,
     const jsi::Value &nativeProps) {
+  if (*destroyed_) {
+    return;
+  }
+
   static const auto method = getJniMethod<void(
       ReadableNativeArray::javaobject, ReadableNativeArray::javaobject)>(
       "configureProps");
@@ -239,6 +262,10 @@ void NativeProxy::updateProps(
     int viewTag,
     const jsi::Value &viewName,
     const jsi::Object &props) {
+  if (*destroyed_) {
+    return;
+  }
+
   static const auto method =
       getJniMethod<void(int, JMap<JString, JObject>::javaobject)>(
           "updateProps");
@@ -247,12 +274,21 @@ void NativeProxy::updateProps(
 }
 
 void NativeProxy::scrollTo(int viewTag, double x, double y, bool animated) {
+  if (*destroyed_) {
+    return;
+  }
+
   static const auto method =
       getJniMethod<void(int, double, double, bool)>("scrollTo");
+
   method(javaPart_.get(), viewTag, x, y, animated);
 }
 
 std::vector<std::pair<std::string, double>> NativeProxy::measure(int viewTag) {
+  if (*destroyed_) {
+    return std::vector<std::pair<std::string, double>>();
+  }
+
   static const auto method =
       getJniMethod<local_ref<JArrayFloat>(int)>("measure");
   local_ref<JArrayFloat> output = method(javaPart_.get(), viewTag);
@@ -283,6 +319,10 @@ void NativeProxy::synchronouslyUpdateUIProps(
     jsi::Runtime &rt,
     Tag tag,
     const jsi::Value &props) {
+  if (*destroyed_) {
+    return;
+  }
+
   static const auto method =
       getJniMethod<void(int, jni::local_ref<ReadableMap::javaobject>)>(
           "synchronouslyUpdateUIProps");
@@ -297,6 +337,10 @@ int NativeProxy::registerSensor(
     int interval,
     int iosReferenceFrame,
     std::function<void(double[], int)> setter) {
+  if (*destroyed_) {
+    return -1;
+  }
+
   static const auto method =
       getJniMethod<int(int, int, SensorSetter::javaobject)>("registerSensor");
   return method(
@@ -306,11 +350,19 @@ int NativeProxy::registerSensor(
       SensorSetter::newObjectCxxArgs(std::move(setter)).get());
 }
 void NativeProxy::unregisterSensor(int sensorId) {
+  if (*destroyed_) {
+    return;
+  }
+
   static const auto method = getJniMethod<void(int)>("unregisterSensor");
   method(javaPart_.get(), sensorId);
 }
 
 void NativeProxy::setGestureState(int handlerTag, int newState) {
+  if (*destroyed_) {
+    return;
+  }
+
   static const auto method = getJniMethod<void(int, int)>("setGestureState");
   method(javaPart_.get(), handlerTag, newState);
 }
@@ -318,6 +370,10 @@ void NativeProxy::setGestureState(int handlerTag, int newState) {
 int NativeProxy::subscribeForKeyboardEvents(
     std::function<void(int, int)> keyboardEventDataUpdater,
     bool isStatusBarTranslucent) {
+  if (*destroyed_) {
+    return 0;
+  }
+
   static const auto method =
       getJniMethod<int(KeyboardEventDataUpdater::javaobject, bool)>(
           "subscribeForKeyboardEvents");
@@ -330,12 +386,20 @@ int NativeProxy::subscribeForKeyboardEvents(
 }
 
 void NativeProxy::unsubscribeFromKeyboardEvents(int listenerId) {
+  if (*destroyed_) {
+    return 0;
+  }
+
   static const auto method =
       getJniMethod<void(int)>("unsubscribeFromKeyboardEvents");
   method(javaPart_.get(), listenerId);
 }
 
 double NativeProxy::getCurrentTime() {
+  if (*destroyed_) {
+    return 0.0;
+  }
+
   static const auto method = getJniMethod<jlong()>("getCurrentTime");
   jlong output = method(javaPart_.get());
   return static_cast<double>(output);

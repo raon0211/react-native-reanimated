@@ -169,6 +169,7 @@ class NativeProxy : public jni::HybridClass<NativeProxy> {
   std::shared_ptr<NativeReanimatedModule> nativeReanimatedModule_;
   jni::global_ref<LayoutAnimations::javaobject> layoutAnimations_;
   std::shared_ptr<Scheduler> scheduler_;
+  std::shared_ptr<bool> destroyed_;
 #ifdef RCT_NEW_ARCH_ENABLED
   std::shared_ptr<NewestShadowNodesRegistry> newestShadowNodesRegistry_;
 
